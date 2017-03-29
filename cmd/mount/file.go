@@ -7,6 +7,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"fmt"
+
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
 	"github.com/ncw/rclone/fs"
@@ -83,15 +85,6 @@ func (f *File) Setattr(ctx context.Context, req *fuse.SetattrRequest, resp *fuse
 		return nil
 	}
 
-	// if o is nil it isn't valid yet
-	o, err := f.waitForValidObject()
-	if err != nil {
-		return err
-	}
-
-	f.mu.Lock()
-	defer f.mu.Unlock()
-
 	var newTime time.Time
 	if req.Valid.MtimeNow() {
 		newTime = time.Now()
@@ -99,17 +92,45 @@ func (f *File) Setattr(ctx context.Context, req *fuse.SetattrRequest, resp *fuse
 		newTime = req.Mtime
 	}
 
-	if !newTime.IsZero() {
-		err := o.SetModTime(newTime)
-		switch err {
-		case nil:
-			fs.Debugf(o, "File.Setattr ModTime OK")
-		case fs.ErrorCantSetModTime:
-			// do nothing, in order to not break "touch somefile" if it exists already
-		default:
-			fs.Errorf(o, "File.Setattr ModTime error: %v", err)
-			return err
-		}
+	if newTime.IsZero() {
+		return nil
+	}
+
+
+	fs.Debugf(f, "LETS FIND VALID OBJECT")
+	fmt.Printf("%+v\n", req)
+
+	f.mu.Lock()
+	needsToRunAsync := f.o == nil && f.writers > 0
+	f.mu.Unlock()
+
+	if needsToRunAsync {
+		fs.Debugf(f, "no remote object yet, but there are still some writers. Setting attrs async")
+		go f.setModTime(newTime)
+		return nil
+	} else {
+		return f.setModTime(newTime)
+	}
+}
+
+func (f *File) setModTime(newTime time.Time) error {
+	fs.Debugf(f, "trying to set mod time to %s", newTime)
+
+	o, err := f.waitForValidObject()
+	if err != nil {
+		fs.Debugf(f, "failed to find file handle in time: %+v", err)
+		return err
+	}
+
+	err = o.SetModTime(newTime)
+	switch err {
+	case nil:
+		fs.Debugf(o, "File.Setattr ModTime OK")
+	case fs.ErrorCantSetModTime:
+		// do nothing, in order to not break "touch somefile" if it exists already
+	default:
+		fs.Errorf(o, "File.Setattr ModTime error: %v", err)
+		return err
 	}
 
 	return nil

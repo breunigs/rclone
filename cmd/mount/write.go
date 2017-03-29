@@ -7,6 +7,8 @@ import (
 	"io"
 	"sync"
 
+	"fmt"
+
 	"bazil.org/fuse"
 	fusefs "bazil.org/fuse/fs"
 	"github.com/ncw/rclone/fs"
@@ -42,6 +44,7 @@ func newWriteFileHandle(d *Dir, f *File, src fs.ObjectInfo) (*WriteFileHandle, e
 	go func() {
 		o, err := d.f.Put(r, src)
 		fh.o = o
+		fmt.Printf("writing, created o handle: %+v\n", o)
 		fh.result <- err
 	}()
 	fh.file.addWriters(1)
@@ -84,17 +87,18 @@ func (fh *WriteFileHandle) close() error {
 	}
 	fh.closed = true
 	fs.Stats.DoneTransferring(fh.remote, true)
-	fh.file.addWriters(-1)
 	writeCloseErr := fh.pipeWriter.Close()
 	err := <-fh.result
 	readCloseErr := fh.pipeReader.Close()
 	if err == nil {
 		fh.file.setObject(fh.o)
+		fmt.Printf("writing, added o handle on file: %+v\n", fh.o)
 		err = writeCloseErr
 	}
 	if err == nil {
 		err = readCloseErr
 	}
+	fh.file.addWriters(-1)
 	return err
 }
 
