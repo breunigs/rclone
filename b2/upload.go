@@ -70,7 +70,7 @@ type largeUpload struct {
 	in       io.Reader                       // read the data from here
 	id       string                          // ID of the file being uploaded
 	size     int64                           // total size
-	parts    int64                           // calculated number of parts
+	parts    int64                           // calculated number of parts, if available
 	sha1s    []string                        // slice of SHA1s for each part
 	uploadMu sync.Mutex                      // lock for upload variable
 	uploads  []*api.GetUploadPartURLResponse // result of get upload URL calls
@@ -80,12 +80,19 @@ type largeUpload struct {
 func (f *Fs) newLargeUpload(o *Object, in io.Reader, src fs.ObjectInfo) (up *largeUpload, err error) {
 	remote := o.remote
 	size := src.Size()
-	parts := size / int64(chunkSize)
-	if size%int64(chunkSize) != 0 {
-		parts++
-	}
-	if parts > maxParts {
-		return nil, errors.Errorf("%q too big (%d bytes) makes too many parts %d > %d - increase --b2-chunk-size", remote, size, parts, maxParts)
+	parts := int64(0)
+	sha1SliceSize := int64(maxParts)
+	if size == -1 {
+		fs.Debugf(o, "Streaming upload with --b2-chunk-size %sByte allows uploads of up to %sByte and will fail only when that limit is reached.", fs.SizeSuffix(chunkSize), fs.SizeSuffix(maxParts*chunkSize))
+	} else {
+		parts = size / int64(chunkSize)
+		if size%int64(chunkSize) != 0 {
+			parts++
+		}
+		if parts > maxParts {
+			return nil, errors.Errorf("%q too big (%d bytes) makes too many parts %d > %d - increase --b2-chunk-size", remote, size, parts, maxParts)
+		}
+		sha1SliceSize = parts
 	}
 	modTime := src.ModTime()
 	opts := rest.Opts{
@@ -123,7 +130,7 @@ func (f *Fs) newLargeUpload(o *Object, in io.Reader, src fs.ObjectInfo) (up *lar
 		id:    response.ID,
 		size:  size,
 		parts: parts,
-		sha1s: make([]string, parts),
+		sha1s: make([]string, sha1SliceSize),
 	}
 	return up, nil
 }
@@ -281,6 +288,82 @@ func (up *largeUpload) cancel() error {
 
 // Upload uploads the chunks from the input
 func (up *largeUpload) Upload() error {
+	if up.size == -1 {
+		return up.uploadUnknownSize()
+	}
+	return up.uploadUnknownSize()
+}
+func (up *largeUpload) uploadUnknownSize() error {
+	fs.Debugf(up.o, "Starting streaming of large file (id %q)", up.id)
+	errs := make(chan error, 1)
+	hasMoreParts := true
+	var wg sync.WaitGroup
+	var err error
+	fs.AccountByPart(up.o) // Cancel whole file accounting before reading
+	part := int64(0)
+outer:
+	for hasMoreParts {
+		// Check any errors
+		select {
+		case err = <-errs:
+			break outer
+		default:
+		}
+
+		// Read the chunk
+		buf := up.f.getUploadBlock()
+		n, readErr := io.ReadFull(up.in, buf)
+		switch readErr {
+		case io.EOF:
+			// no bytes read, we do not need to upload this block
+			up.f.putUploadBlock(buf)
+			break outer
+		case io.ErrUnexpectedEOF:
+			// some bytes were read, upload what we got
+			hasMoreParts = false
+			buf = buf[:n]
+		default:
+			// read a full block
+		}
+
+		// Transfer the chunk
+		wg.Add(1)
+		part++
+		go func(part int64, buf []byte) {
+			defer wg.Done()
+			defer up.f.putUploadBlock(buf)
+			err := up.transferChunk(part, buf)
+			if err != nil {
+				select {
+				case errs <- err:
+				default:
+				}
+			}
+		}(part, buf)
+	}
+	wg.Wait()
+	up.parts = part
+	up.sha1s = up.sha1s[:part-1]
+	if err == nil {
+		select {
+		case err = <-errs:
+		default:
+		}
+	}
+	if err != nil {
+		fs.Debugf(up.o, "Cancelling large file upload due to error: %v", err)
+		cancelErr := up.cancel()
+		if cancelErr != nil {
+			fs.Errorf(up.o, "Failed to cancel large file upload: %v", cancelErr)
+		}
+		return err
+	}
+	// Check any errors
+	fs.Debugf(up.o, "Finishing large file upload. It had %d parts.", up.parts)
+	return up.finish()
+}
+
+func (up *largeUpload) uploadKnownSize() error {
 	fs.Debugf(up.o, "Starting upload of large file in %d chunks (id %q)", up.parts, up.id)
 	remaining := up.size
 	errs := make(chan error, 1)

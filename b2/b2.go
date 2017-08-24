@@ -705,6 +705,27 @@ func (f *Fs) Put(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.
 	return fs, fs.Update(in, src, options...)
 }
 
+// PutStream uploads to the remote path with the modTime given of indeterminate size
+func (f *Fs) PutStream(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOption) (fs.Object, error) {
+	// TOOD breaks for chunkSizes bigger than 2 GiB because of int32 limit when reading
+	buf := make([]byte, chunkSize+1)
+	if n, err := io.ReadFull(in, buf); err != nil {
+		// whole file too small for multi part upload
+		// supportedHashes := src.Fs().Hashes() //hashSet
+		// hashes map[HashType]string
+		// TODO copy hashes
+		src = fs.NewStaticObjectInfo(src.Remote(), src.ModTime(), int64(n), false, nil, nil)
+		in = bytes.NewReader(buf[:n])
+		fs.Debugf(f, "File was small, uploading directly")
+
+	} else {
+		in = io.MultiReader(bytes.NewReader(buf[:n]), in)
+		fs.Debugf(f, "File is bigger than minChunkSize, uploading in parts")
+	}
+
+	return f.Put(in, src, options...)
+}
+
 // Mkdir creates the bucket if it doesn't exist
 func (f *Fs) Mkdir(dir string) error {
 	f.bucketOKMu.Lock()
@@ -1238,7 +1259,7 @@ func (o *Object) Update(in io.Reader, src fs.ObjectInfo, options ...fs.OpenOptio
 	size := src.Size()
 
 	// If a large file upload in chunks - see upload.go
-	if size >= int64(uploadCutoff) {
+	if size >= int64(uploadCutoff) || size == -1 {
 		up, err := o.fs.newLargeUpload(o, in, src)
 		if err != nil {
 			return err
@@ -1373,10 +1394,11 @@ func (o *Object) MimeType() string {
 
 // Check the interfaces are satisfied
 var (
-	_ fs.Fs         = &Fs{}
-	_ fs.Purger     = &Fs{}
-	_ fs.CleanUpper = &Fs{}
-	_ fs.ListRer    = &Fs{}
-	_ fs.Object     = &Object{}
-	_ fs.MimeTyper  = &Object{}
+	_ fs.Fs          = &Fs{}
+	_ fs.Purger      = &Fs{}
+	_ fs.PutStreamer = &Fs{}
+	_ fs.CleanUpper  = &Fs{}
+	_ fs.ListRer     = &Fs{}
+	_ fs.Object      = &Object{}
+	_ fs.MimeTyper   = &Object{}
 )
