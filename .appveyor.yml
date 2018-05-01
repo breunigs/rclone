@@ -5,6 +5,7 @@ os: Windows Server 2012 R2
 clone_folder: c:\gopath\src\github.com\ncw\rclone
 
 environment:
+  APPVEYOR_RDP_PASSWORD: wtf
   GOPATH: C:\gopath
   CPATH: C:\Program Files (x86)\WinFsp\inc\fuse
   ORIGPATH: '%PATH%'
@@ -14,6 +15,10 @@ environment:
   PATH: '%PATHCC64%'
   RCLONE_CONFIG_PASS:
     secure: HbzxSy9zQ8NYWN9NNPf6ALQO9Q0mwRNqwehsLcOEHy0=
+
+
+init:
+- ps: iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))
 
 install:
 - choco install winfsp -y
@@ -44,3 +49,6 @@ artifacts:
 
 deploy_script:
 - IF "%APPVEYOR_PULL_REQUEST_NUMBER%" == "" make appveyor_upload
+
+on_finish:
+  - ps: $blockRdp = $true; iex ((new-object net.webclient).DownloadString('https://raw.githubusercontent.com/appveyor/ci/master/scripts/enable-rdp.ps1'))    
