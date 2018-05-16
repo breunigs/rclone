@@ -41,6 +41,3 @@ test_script:
 artifacts:
 - path: rclone.exe
 - path: build/*-v*.zip
-
-deploy_script:
-- IF "%APPVEYOR_PULL_REQUEST_NUMBER%" == "" make appveyor_upload
