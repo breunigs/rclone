@@ -40,7 +40,7 @@ test:	rclone
 
 # Quick test
 quicktest:
-	RCLONE_CONFIG="/notfound" go test -tags "cmount" github.com/ncw/rclone github.com/ncw/rclone/backend/all github.com/ncw/rclone/cmd github.com/ncw/rclone/cmd/cmount github.com/ncw/rclone/cmd/mount github.com/ncw/rclone/cmd/mountlib github.com/ncw/rclone/cmd/mountlib/mounttest -verbose -v
+	RCLONE_CONFIG="/notfound" go test -tags "cmount" github.com/ncw/rclone github.com/ncw/rclone/backend/all github.com/ncw/rclone/cmd github.com/ncw/rclone/cmd/cmount github.com/ncw/rclone/cmd/mount github.com/ncw/rclone/cmd/mountlib github.com/ncw/rclone/cmd/mountlib/mounttest -v -timeout 300s
 
 # Do source code quality checks
 check:	rclone
