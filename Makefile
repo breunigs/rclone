@@ -40,10 +40,7 @@ test:	rclone
 
 # Quick test
 quicktest:
-	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) $(GO_FILES) -v -verbose
-ifdef FULL_TESTS
-	RCLONE_CONFIG="/notfound" go test $(BUILDTAGS) -cpu=2 -race $(GO_FILES)
-endif
+	RCLONE_CONFIG="/notfound" go test -tags "cmount" github.com/ncw/rclone github.com/ncw/rclone/backend/all github.com/ncw/rclone/cmd github.com/ncw/rclone/cmd/cmount github.com/ncw/rclone/cmd/mount github.com/ncw/rclone/cmd/mountlib github.com/ncw/rclone/cmd/mountlib/mounttest -verbose -v
 
 # Do source code quality checks
 check:	rclone
