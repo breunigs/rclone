@@ -30,14 +30,7 @@ build_script:
 - make log_since_last_release > %TEMP%\git-log.txt
 - make version > %TEMP%\version
 - set /p RCLONE_VERSION=<%TEMP%\version
-- set PATH=%PATHCC32%
-- go run bin/cross-compile.go -release beta-latest -git-log %TEMP%\git-log.txt -include "^windows/386" -cgo -tags cmount %RCLONE_VERSION%
 - set PATH=%PATHCC64%
-- go run bin/cross-compile.go -release beta-latest -git-log %TEMP%\git-log.txt -include "^windows/amd64" -cgo -no-clean -tags cmount %RCLONE_VERSION%
 
 test_script:
 - make GOTAGS=cmount quicktest
-
-artifacts:
-- path: rclone.exe
-- path: build/*-v*.zip
