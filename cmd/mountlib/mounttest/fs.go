@@ -53,7 +53,6 @@ func RunTests(t *testing.T, fn MountFn) {
 		log.Printf("Starting test run with cache mode %v", cacheMode)
 		ok := t.Run(fmt.Sprintf("CacheMode=%v", cacheMode), func(t *testing.T) {
 			t.Run("TestTouchAndDelete", TestTouchAndDelete)
-			t.Run("TestRenameOpenHandle", TestRenameOpenHandle)
 			t.Run("TestDirLs", TestDirLs)
 			t.Run("TestDirCreateAndRemoveDir", TestDirCreateAndRemoveDir)
 			t.Run("TestDirCreateAndRemoveFile", TestDirCreateAndRemoveFile)
@@ -76,6 +75,7 @@ func RunTests(t *testing.T, fn MountFn) {
 			t.Run("TestWriteFileOverwrite", TestWriteFileOverwrite)
 			t.Run("TestWriteFileDoubleClose", TestWriteFileDoubleClose)
 			t.Run("TestWriteFileFsync", TestWriteFileFsync)
+			t.Run("TestRenameOpenHandle", TestRenameOpenHandle)
 		})
 		log.Printf("Finished test run with cache mode %v (ok=%v)", cacheMode, ok)
 		if !ok {
