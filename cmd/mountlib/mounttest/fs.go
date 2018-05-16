@@ -43,9 +43,9 @@ func RunTests(t *testing.T, fn MountFn) {
 	flag.Parse()
 	cacheModes := []vfs.CacheMode{
 		vfs.CacheModeOff,
-		vfs.CacheModeMinimal,
-		vfs.CacheModeWrites,
-		vfs.CacheModeFull,
+		// vfs.CacheModeMinimal,
+		// vfs.CacheModeWrites,
+		// vfs.CacheModeFull,
 	}
 	run = newRun()
 	for _, cacheMode := range cacheModes {
