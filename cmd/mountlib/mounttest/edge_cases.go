@@ -25,10 +25,18 @@ func TestRenameOpenHandle(t *testing.T) {
 	run.skipIfNoFUSE(t)
 	run.checkDir(t, "")
 
-	// create file
 	example := []byte("Some Data")
 	path := run.path("rename")
+
+	// create file for Windows once
 	file, err := osCreate(path)
+	require.NoError(t, err)
+	err = file.Close()
+	require.NoError(t, err)
+	run.checkDir(t, "rename 0")
+
+	// create/overwrite again for proper test
+	file, err = osCreate(path)
 	require.NoError(t, err)
 
 	// write some data
