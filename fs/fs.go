@@ -872,7 +872,7 @@ func CalculateModifyWindow(fss ...Fs) {
 		if f != nil {
 			precision := f.Precision()
 			if precision > Config.ModifyWindow {
-				Config.ModifyWindow = precision
+				// Config.ModifyWindow = precision
 			}
 			if precision == ModTimeNotSupported {
 				Infof(f, "Modify window not supported")
