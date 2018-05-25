@@ -47,11 +47,13 @@ func RunTests(t *testing.T, fn MountFn) {
 		vfs.CacheModeWrites,
 		vfs.CacheModeFull,
 	}
+	fs.Config.ModifyWindow = 0
 	run = newRun()
 	for _, cacheMode := range cacheModes {
 		run.cacheMode(cacheMode)
 		log.Printf("Starting test run with cache mode %v", cacheMode)
 		ok := t.Run(fmt.Sprintf("CacheMode=%v", cacheMode), func(t *testing.T) {
+			t.Run("TestModifyWindow", TestModifyWindow)
 			t.Run("TestTouchAndDelete", TestTouchAndDelete)
 			t.Run("TestRenameOpenHandle", TestRenameOpenHandle)
 			t.Run("TestDirLs", TestDirLs)
@@ -402,4 +404,12 @@ func TestRoot(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, fi.IsDir())
 	assert.Equal(t, run.vfs.Opt.DirPerms&os.ModePerm, fi.Mode().Perm())
+}
+
+func TestModifyWindow(t *testing.T) {
+	run.skipIfNoFUSE(t)
+	// fs.Config.ModifyWindow is being set to 0 before starting the mount. The
+	// actual value is always bigger than that, so we can check if
+	// CalculateModifyWindow has been called.
+	assert.NotEqual(t, 0, fs.Config.ModifyWindow)
 }
